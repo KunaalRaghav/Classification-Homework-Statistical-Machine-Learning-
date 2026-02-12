@@ -5,23 +5,225 @@ format: pdf
 editor: visual
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+## Install and Library Packages
 
 ```{r}
-1 + 1
+#install.packages("pROC")
+library(pROC)
+library(ISLR2)
+library(MASS)
 ```
 
-You can add options to executable code like this
+## Stock Market Prediction (Exercise 4.8.13)
+
+Question A
 
 ```{r}
-#| echo: false
-2 * 2
+data("Weekly")
+
+Directions <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5,
+                data = Weekly, family = binomial)
+summary(Directions)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Right now the only variable that seems to be statistically significant is Lag2, or the percentage returns for the previous two weeks.
+
+Part B
+
+```{r}
+probs <- predict(Directions, type = "response")
+preds <- ifelse(probs > 0.5, "Up", "Down")
+table(preds, Weekly$Direction)
+mean(preds == Weekly$Direction)
+```
+
+On one hand, there are a lot of false negatives, meaning that predictions are unusually high for up/ raises in the markets, where as they actually come to be heavily in the downs/ negative.
+
+Part C
+
+```{r}
+train <- Weekly$Year <= 2008
+test  <- Weekly$Year > 2008
+
+fit_lag2 <- glm(Direction ~ Lag2, data = Weekly, family = binomial, subset = train)
+probs_test <- predict(fit_lag2, newdata = Weekly[test, ], type = "response")
+preds_test <- ifelse(probs_test > 0.5, "Up", "Down")
+
+table(preds_test, Weekly$Direction[test])
+mean(preds_test == Weekly$Direction[test])
+```
+
+Considering that this model has a 62.5%, we can say that this model is more accurate. With the extra variables that were removed, its safe to say that there is a pattern of over fitting in the previous model
+
+Part D
+
+```{r}
+
+# Train/test split
+train <- Weekly$Year <= 2008
+test  <- Weekly$Year > 2008
+fit_lag2 <- glm(Direction ~ Lag2, data = Weekly,
+                family = binomial, subset = train)
+probs_test <- predict(fit_lag2, newdata = Weekly[test, ], type = "response")
+actual_test <- Weekly$Direction[test]
+roc_obj <- roc(actual_test, probs_test, levels = c("Down", "Up"))
+plot(roc_obj, col = "blue", lwd = 2,
+     main = "ROC Curve for Logistic Regression (Lag2 Only, Test Data)")
+abline(0, 1, lty = 2, col = "gray")
+
+```
+
+The model, while slightly better than a random prediction, which sits at .5, is not well established enough to properly predict down markets.
+
+## LDA vs QDA (Exercise 4.8.5)
+
+Part A
+
+On the training data set, since the model is more flexible, QDA is better used
+
+On the test data set, since the model matches that classifer, LDA is better , as it will produce a lower test error
+
+Part B
+
+In the training set, QDA will have a lower error rate, because it will fit the model better than LDA, due to flexibility
+
+With a nonlinear setting in the Bayes decision boundary, QDA will preform better due to low bias
+
+Part C
+
+With increases in the n size, test performance of QDA should improve, as QDA has high variance. Small n sizes means the variance hurts test performance
+
+Part D
+
+The aforementioned statement is wrong, as , the Bayes Classifier, in its Linear form, matches LDAS which has low bias and lower variance ( as compared to QDA).
+
+## Non Uniform Prior (Exercise 4.8.7)
+
+The following is the probability that we are setting up for calculation
+
+$$
+P (Dividend | X=4)
+$$
+
+$$
+\mu_1=10
+$$
+
+$$
+\mu_2=0
+$$
+
+$$
+\sigma=6
+$$
+
+$$
+\sigma^2=36
+$$
+
+Prior Probability issuing a dividend:
+
+$$
+P(D)=.8
+$$
+
+Prior Probability not issuing a dividend:
+
+$$
+P(N)=.2
+$$
+
+Observed Profit
+
+$$
+X=8
+$$
+
+The first step is calculating for the following equations:
+
+$$
+f_1(4)=f(X=4|D)
+$$
+
+$$
+f_1(4)=f(X=4|N)
+$$
+
+We use the density function to calculate. The density function is:
+
+$$
+f(x)=\frac{1}{\sigma\sqrt{2\pi}}^{(-\frac{(x-\mu)^2}{2\sigma^2})}
+$$
+
+For dividend companies, the filled in equation is as follows:
+
+$$
+f_2(4)=\frac{1}{6\sqrt{2\pi}}^{(-\frac{(4-10)^2}{72})}
+$$
+
+The transformed equation becomes:
+
+$$
+f_1(4)=\frac{1}{6\sqrt{2\pi}}e^{-.5}
+$$
+
+For non-dividend companies, the filled in equation is as follows
+
+$$
+f_2(4)=\frac{1}{6\sqrt{2\pi}}^{(-\frac{(4-0)^2}{72})}
+$$
+
+The transformed equation becomes:
+
+$$
+f_2(4)=\frac{1}{6\sqrt{2\pi}}e^{-.22}
+$$
+
+Then we plug in the Bayes Theorem:
+
+$$
+P(D|X=4)= \frac {f_1(4)P(D)}{f_1(4)P(D)+f_2(4)P(N)}
+$$
+
+
+
+The equationm, simplified, now becomes the following:
+
+$$
+P(D|X=4)= \frac {.8(e^{-.5})}{(.8(e^{-.5}))(.2(e^{-.22})}=.752
+$$
+
+Thus we can claim the following :
+The probability the company will issue a dividend given last year’s profit was 4% is approximately 75%
+
+If you want, I can also show you the exact R code that reproduces this result or help you generalize the formula for any value of X.
+
+## Stock Market Predictions Part 3 (Exercise 4.8.13)
+
+Part A
+
+```{r}
+data("Weekly")
+train <- Weekly$Year <= 2008
+test  <- Weekly$Year > 2008
+lda_fit <- lda(Direction ~ Lag2, data = Weekly, subset = train)
+lda_pred <- predict(lda_fit, Weekly[test, ])$class
+table(lda_pred, Weekly$Direction[test])
+mean(lda_pred == Weekly$Direction[test])
+```
+
+Part B
+
+```{r}
+qda_fit <- qda(Direction ~ Lag2, data = Weekly, subset = train)
+
+qda_pred <- predict(qda_fit, Weekly[test, ])$class
+
+table(qda_pred, Weekly$Direction[test])
+
+mean(qda_pred == Weekly$Direction[test])
+```
+
+Part C
+
+With the provided accuracy measures, shown above, I would most likely suggest LDA, as it results in the highest accuracy, at 62%
